@@ -46,7 +46,7 @@ functions = [
     ('struct uclamp_se uclamp_eff_get(struct task_struct *p, enum uclamp_id clamp_id)', 'uclamp_eff_get'),
     ('void uclamp_rq_inc_id(struct rq *rq, struct task_struct *p, enum uclamp_id clamp_id)', 'uclamp_rq_inc_id'),
     ('void uclamp_rq_dec_id(struct rq *rq, struct task_struct *p, enum uclamp_id clamp_id)', 'uclamp_rq_dec_id'),
-    ('void uclamp_update_active(struct task_struct *p, enum uclamp_id clamp_id)', 'uclamp_update_active'),
+    ('void uclamp_update_active(struct task_struct *p)', 'uclamp_update_active'),
     ('void uclamp_fork(struct task_struct *p)', 'uclamp_fork'),
     ('void init_uclamp_rq(struct rq *rq)', 'init_uclamp_rq'),
 ]
@@ -84,7 +84,7 @@ int main(void) {
     dequeue(&b);
     assert(rq_data.uclamp[0].value == 256 && rq_data.uclamp[1].value == 512);
     uclamp_se_set(&a.uclamp_req[1], 600, true);
-    uclamp_update_active(&a, UCLAMP_MAX);
+    uclamp_update_active(&a);
     assert(a.uclamp[1].value == 600 && rq_data.uclamp[1].value == 600);
     assert(!(rq_data.uclamp_flags & UCLAMP_FLAG_IDLE));
     dequeue(&a);

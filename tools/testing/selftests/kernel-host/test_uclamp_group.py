@@ -42,6 +42,12 @@ int main(void) {
     assert(uclamp_tg_restrict(&p, UCLAMP_MIN).value == 768);
     group.uclamp[1].value = 512;
     assert(uclamp_tg_restrict(&p, UCLAMP_MAX).value == 512);
+    assert(uclamp_tg_restrict(&p, UCLAMP_MIN).value == 512);
+    assert(uclamp_tg_restrict(&p, UCLAMP_MIN).bucket_id == uclamp_bucket_id(512));
+    group.uclamp[0].value = 384;
+    uclamp_se_set(&p.uclamp_req[1], 128, true);
+    assert(uclamp_tg_restrict(&p, UCLAMP_MAX).value == 384);
+    assert(uclamp_tg_restrict(&p, UCLAMP_MAX).bucket_id == uclamp_bucket_id(384));
     p.group = &root_task_group;
     assert(uclamp_tg_restrict(&p, UCLAMP_MIN).value == 768);
     group.autogroup = true; p.group = &group;
