@@ -355,3 +355,5 @@ properly.
 
 Nitin Gupta
 ngupta@vflare.org
+
+The block_state flag r identifies a page recompressed with a secondary algorithm.
