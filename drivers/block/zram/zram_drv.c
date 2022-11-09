@@ -633,6 +633,7 @@ static int read_from_bdev_async(struct zram *zram, struct bio_vec *bvec,
 
 #define HUGE_WRITEBACK 1
 #define IDLE_WRITEBACK 2
+#define INCOMPRESSIBLE_WRITEBACK 3
 
 static ssize_t writeback_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t len)
@@ -644,7 +645,7 @@ static ssize_t writeback_store(struct device *dev,
 	struct bio_vec bio_vec;
 	struct page *page;
 	ssize_t ret, sz;
-	char mode_buf[8];
+	char mode_buf[16];
 	int mode = -1;
 	unsigned long blk_idx = 0;
 
@@ -660,6 +661,8 @@ static ssize_t writeback_store(struct device *dev,
 		mode = IDLE_WRITEBACK;
 	else if (!strcmp(mode_buf, "huge"))
 		mode = HUGE_WRITEBACK;
+	else if (!strcmp(mode_buf, "incompressible"))
+		mode = INCOMPRESSIBLE_WRITEBACK;
 
 	if (mode == -1)
 		return -EINVAL;
@@ -718,6 +721,9 @@ static ssize_t writeback_store(struct device *dev,
 			goto next;
 		if (mode == HUGE_WRITEBACK &&
 			  !zram_test_flag(zram, index, ZRAM_HUGE))
+			goto next;
+		if (mode == INCOMPRESSIBLE_WRITEBACK &&
+		    !zram_test_flag(zram, index, ZRAM_INCOMPRESSIBLE))
 			goto next;
 		/*
 		 * Clearing ZRAM_UNDER_WB is duty of caller.
