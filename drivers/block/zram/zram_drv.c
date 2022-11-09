@@ -1410,27 +1410,27 @@ out:
 		~(1UL << ZRAM_LOCK | 1UL << ZRAM_UNDER_WB));
 }
 
-static int __zram_bvec_read(struct zram *zram, struct page *page, u32 index,
-				struct bio *bio, bool partial_io)
+/* Read from the backing device with the slot unlocked. */
+static int zram_bvec_read_from_bdev(struct zram *zram, struct page *page,
+				    u32 index, struct bio *bio, bool partial_io)
+{
+	struct bio_vec bvec = {
+		.bv_page = page,
+		.bv_len = PAGE_SIZE,
+		.bv_offset = 0,
+	};
+
+	return read_from_bdev(zram, &bvec, zram_get_element(zram, index), bio,
+			      partial_io);
+}
+
+/* The slot stays locked while reading and decompressing its object. */
+static int zram_read_from_zspool(struct zram *zram, struct page *page, u32 index)
 {
 	int ret;
 	struct zram_entry *entry;
 	unsigned int size;
 	void *src, *dst;
-
-	zram_slot_lock(zram, index);
-	if (zram_test_flag(zram, index, ZRAM_WB)) {
-		struct bio_vec bvec;
-
-		zram_slot_unlock(zram, index);
-
-		bvec.bv_page = page;
-		bvec.bv_len = PAGE_SIZE;
-		bvec.bv_offset = 0;
-		return read_from_bdev(zram, &bvec,
-				zram_get_element(zram, index),
-				bio, partial_io);
-	}
 
 	entry = zram_get_entry(zram, index);
 	if (!entry || zram_test_flag(zram, index, ZRAM_SAME)) {
@@ -1462,12 +1462,27 @@ static int __zram_bvec_read(struct zram *zram, struct page *page, u32 index,
 		zcomp_stream_put(zram->comps[ZRAM_PRIMARY_COMP]);
 	}
 	zs_unmap_object(zram->mem_pool, zram_entry_handle(zram, entry));
-	zram_slot_unlock(zram, index);
 
-	/* Should NEVER happen. Return bio error if it does. */
-	if (unlikely(ret))
+	return ret;
+}
+
+static int __zram_bvec_read(struct zram *zram, struct page *page, u32 index,
+			    struct bio *bio, bool partial_io)
+{
+	int ret;
+
+	zram_slot_lock(zram, index);
+	if (!zram_test_flag(zram, index, ZRAM_WB)) {
+		ret = zram_read_from_zspool(zram, page, index);
+		zram_slot_unlock(zram, index);
+	} else {
+		zram_slot_unlock(zram, index);
+		if (!bio)
+			return -EOPNOTSUPP;
+		ret = zram_bvec_read_from_bdev(zram, page, index, bio, partial_io);
+	}
+	if (WARN_ON(ret < 0))
 		pr_err("Decompression failed! err=%d, page=%u\n", ret, index);
-
 	return ret;
 }
 
