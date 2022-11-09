@@ -360,3 +360,5 @@ The block_state flag r identifies a page recompressed with a secondary algorithm
 
 With recompression enabled, writeback accepts incompressible to select pages
 that all configured secondary compressors failed to shrink.
+
+The block_state flag n identifies a page no secondary compressor could shrink.
