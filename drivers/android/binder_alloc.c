@@ -472,8 +472,8 @@ static struct binder_buffer *binder_alloc_new_buf_locked(
 	struct binder_buffer *buffer;
 	size_t buffer_size;
 	struct rb_node *best_fit = NULL;
-	unsigned long has_page_addr;
-	unsigned long end_page_addr;
+	unsigned long next_used_page;
+	unsigned long curr_last_page;
 #ifdef OPLUS_FEATURE_HANS_FREEZE
 //#Kun.Zhou@ANDROID.RESCONTROL, 2019/09/23, add for hans freeze manager
 	struct task_struct *p = NULL;
@@ -542,12 +542,16 @@ static struct binder_buffer *binder_alloc_new_buf_locked(
 		     "%d: binder_alloc_buf size %zd got buffer %pK size %zd\n",
 		      alloc->pid, size, buffer, buffer_size);
 
-	has_page_addr = (buffer->user_data + buffer_size) & PAGE_MASK;
-	end_page_addr = PAGE_ALIGN(buffer->user_data + size);
-	if (end_page_addr > has_page_addr)
-		end_page_addr = has_page_addr;
+	/*
+	 * Now we remove the pages from the freelist. A clever calculation
+	 * with buffer_size determines if the last page is shared with an
+	 * adjacent in-use buffer. In such case, the page has been already
+	 * removed from the freelist so we trim our range short.
+	 */
+	next_used_page = (buffer->user_data + buffer_size) & PAGE_MASK;
+	curr_last_page = PAGE_ALIGN(buffer->user_data + size);
 	binder_lru_freelist_del(alloc, PAGE_ALIGN(buffer->user_data),
-				end_page_addr);
+				min(next_used_page, curr_last_page));
 
 	rb_erase(&buffer->rb_node, &alloc->free_buffers);
 	buffer->free = 0;
