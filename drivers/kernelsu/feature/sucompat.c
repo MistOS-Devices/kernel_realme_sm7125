@@ -218,28 +218,31 @@ int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
 	struct filename *filename;
 	const char su[] = SU_PATH;
 	static const char ksud_path[] = KSUD_PATH;
+	int ret;
 
-	if (unlikely(!filename_ptr))
+	if (unlikely(!filename_ptr) || !ksu_su_compat_enabled)
 		return 0;
 
 	if (!ksu_is_allow_uid_for_current(current_uid().val))
 		return 0;
 
 	filename = *filename_ptr;
-	if (IS_ERR(filename))
+	if (IS_ERR_OR_NULL(filename))
 		return 0;
 
-	if (likely(memcmp(filename->name, su, sizeof(su))))
+	if (likely(strcmp(filename->name, su)))
 		return 0;
 
 	pr_info("do_execveat_common su found\n");
+
+	ksu_sulog_emit(KSU_SULOG_EVENT_SUCOMPAT, NULL, 0, GFP_KERNEL);
+
+	ret = escape_with_root_profile();
+	if (ret)
+		return ret;
+
 	memcpy((void *)filename->name, ksud_path, sizeof(ksud_path));
-
-	ksu_sulog_emit(KSU_SULOG_EVENT_SUCOMPAT, NULL, NULL, GFP_KERNEL);
-
-	escape_with_root_profile();
-
-	return 0;
+	return 1;
 }
 
 int __ksu_handle_devpts(struct inode *inode)
