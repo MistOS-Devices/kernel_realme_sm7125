@@ -11,6 +11,7 @@
 #define EVENT_POST_FS_DATA 1
 #define EVENT_BOOT_COMPLETED 2
 #define EVENT_MODULE_MOUNTED 3
+#define EVENT_SERVICES 4
 
 static inline int startswith(char *s, char *prefix)
 {
