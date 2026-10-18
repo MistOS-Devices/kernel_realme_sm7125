@@ -27,6 +27,7 @@
 
 #define pr_fmt(fmt) "sbalance: " fmt
 
+#include <linux/cpu.h>
 #include <linux/freezer.h>
 #include <linux/irq.h>
 #include <linux/list_sort.h>
@@ -205,10 +206,13 @@ static void balance_irqs(void)
 	struct bal_irq *bi;
 	int cpu;
 
+	/* Keep hotplug and core-control isolation stable through IRQ migration. */
+	cpu_maps_update_begin();
 	rcu_read_lock();
 
 	/* Find the available CPUs for balancing, if there are any */
 	cpumask_andnot(&cpus, cpu_active_mask, &cpu_exclude_mask);
+	cpumask_andnot(&cpus, &cpus, cpu_isolated_mask);
 	if (unlikely(cpumask_weight(&cpus) <= 1))
 		goto unlock;
 
@@ -315,6 +319,7 @@ try_next_heaviest:
 		goto try_next_heaviest;
 unlock:
 	rcu_read_unlock();
+	cpu_maps_update_done();
 
 	/* Reset each balance domain for the next run */
 	for_each_possible_cpu(cpu) {
