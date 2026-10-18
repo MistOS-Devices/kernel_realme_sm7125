@@ -76,12 +76,13 @@ is_ksu_transition(const struct task_security_struct *old_tsec,
 }
 #endif
 
-void setup_selinux(const char *domain, struct cred *cred)
+int setup_selinux(const char *domain, struct cred *cred)
 {
-    if (transive_to_domain(domain, cred, false)) {
+    int ret = transive_to_domain(domain, cred, false);
+
+    if (ret)
         pr_err("transive domain failed.\n");
-        return;
-    }
+    return ret;
 }
 
 void setup_ksu_cred(void)

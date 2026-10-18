@@ -39,7 +39,7 @@ static inline u32 current_sid(void)
 #define ZYGOTE_CONTEXT "u:r:zygote:s0"
 #define INIT_CONTEXT "u:r:init:s0"
 
-void setup_selinux(const char *, struct cred *);
+int setup_selinux(const char *, struct cred *);
 
 void setenforce(bool);
 
