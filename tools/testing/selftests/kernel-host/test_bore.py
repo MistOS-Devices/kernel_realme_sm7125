@@ -62,18 +62,18 @@ int main(void) {
     assert(p.se.burst_score == 1);
     p.policy = 0;
     set_load_weight(&p);
-    assert(p.se.load.weight == sched_prio_to_weight[21]);
+    assert(p.se.load.weight == (unsigned long)sched_prio_to_weight[21]);
     p.se.burst_penalty = 20;
     update_burst_score(&p.se);
-    assert(p.se.load.weight == sched_prio_to_weight[25]);
+    assert(p.se.load.weight == (unsigned long)sched_prio_to_weight[25]);
     p.static_prio = 121; /* Same operation as the nice-change path. */
     set_load_weight(&p);
     update_burst_score(&p.se);
-    assert(p.se.load.weight == sched_prio_to_weight[26]);
+    assert(p.se.load.weight == (unsigned long)sched_prio_to_weight[26]);
     assert(p.se.load.inv_weight == sched_prio_to_wmult[26]);
     p.static_prio = 139;
     set_load_weight(&p);
-    assert(p.se.load.weight == sched_prio_to_weight[39]);
+    assert(p.se.load.weight == (unsigned long)sched_prio_to_weight[39]);
     p.policy = 5;
     set_load_weight(&p);
     p.se.burst_penalty = 0;
