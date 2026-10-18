@@ -740,7 +740,8 @@ static int enter_state(suspend_state_t state)
 
 #ifdef OPLUS_BUG_STABILITY
 //Bin.Xu@BSP.Kernel.Stability,2020/4/11,add check-list screen on too slowly when press pwrkey
-	if (sys_sync_queue())
+	error = sys_sync_queue();
+	if (error)
 		goto Unlock;
 #else
 #ifndef CONFIG_SUSPEND_SKIP_SYNC
