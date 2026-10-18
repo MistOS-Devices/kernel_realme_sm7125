@@ -767,6 +767,9 @@ static void set_load_weight(struct task_struct *p)
 		return;
 	}
 
+#ifdef CONFIG_SCHED_BORE
+	prio = min(39, prio + (int)p->se.burst_score);
+#endif
 	load->weight = scale_load(sched_prio_to_weight[prio]);
 	load->inv_weight = sched_prio_to_wmult[prio];
 }

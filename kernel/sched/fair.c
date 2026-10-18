@@ -971,7 +971,7 @@ static void update_burst_score(struct sched_entity *se) {
 	if (!(p->flags & PF_KTHREAD && sched_burst_exclude_kthreads))
 		se->burst_score = se->burst_penalty >> 2;	
 	new_prio = min(39, prio + (s32)se->burst_score);
-	if (new_prio != prev_prio)
+	if (!idle_policy(p->policy) && new_prio != prev_prio)
 		reweight_task(p, new_prio);
 }
 
