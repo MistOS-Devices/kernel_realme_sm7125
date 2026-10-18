@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Run the actual touch-boost workers against a refcounted scheduler model."""
+import os
 import pathlib
 import re
+import shlex
 import subprocess
 import tempfile
 
@@ -65,7 +67,8 @@ int main(void) {
 with tempfile.TemporaryDirectory() as tmp:
     path = pathlib.Path(tmp)
     (path/'test.c').write_text(code+active+'\n'+workers+main)
-    subprocess.run(['cc','-Wall','-Wextra','-Werror','-Wno-unused-parameter',
+    subprocess.run(shlex.split(os.environ.get('HOSTCC', 'cc')) +
+                   ['-Wall','-Wextra','-Werror','-Wno-unused-parameter',
                     '-fsanitize=address,undefined',str(path/'test.c'),
                     '-o',str(path/'test')],check=True)
     subprocess.run([str(path/'test')],check=True)

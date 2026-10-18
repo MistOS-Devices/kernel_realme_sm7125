@@ -27,7 +27,10 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential bc bison flex libssl-dev libelf-dev ccache zip
+          sudo apt-get install -y build-essential bc bison flex libssl-dev libelf-dev ccache zip python3
+
+      - name: Run host regression tests
+        run: make -C tools/testing/selftests/kernel-host run_tests
 
       - name: Cache toolchains and AnyKernel3
         uses: actions/cache@v4
