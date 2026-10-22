@@ -39,6 +39,7 @@
 #include <linux/proc_ns.h>
 #include <linux/proc_fs.h>
 #include <linux/anon_inodes.h>
+#include <linux/file.h>
 #include <linux/sched/signal.h>
 #include <linux/sched/task.h>
 #include <linux/idr.h>
@@ -583,4 +584,21 @@ void __init pid_idr_init(void)
 
 	init_pid_ns.pid_cachep = KMEM_CACHE(pid,
 			SLAB_HWCACHE_ALIGN | SLAB_PANIC | SLAB_ACCOUNT);
+}
+
+struct pid *pidfd_get_pid(unsigned int fd, unsigned int *flags)
+{
+	struct fd f = fdget(fd);
+	struct pid *pid;
+
+	if (!f.file)
+		return ERR_PTR(-EBADF);
+
+	pid = ERR_PTR(-EBADF);
+	if (f.file->f_op == &pidfd_fops) {
+		*flags = f.file->f_flags;
+		pid = get_pid(f.file->private_data);
+	}
+	fdput(f);
+	return pid;
 }
