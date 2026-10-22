@@ -23,8 +23,6 @@ static unsigned int buckets = 5;
 struct uclamp_se { unsigned int value; };
 struct task_struct { struct uclamp_se uclamp_req[2]; };
 struct sched_attr { unsigned long sched_flags; unsigned int sched_util_min, sched_util_max; };
-static bool sched_uclamp_used;
-static void static_branch_enable(bool *key) { *key = true; }
 static unsigned int uclamp_bucket_id(unsigned int clamp_value)
 ''' + bucket + r'''
 static int uclamp_validate(struct task_struct *p, const struct sched_attr *attr)
@@ -36,7 +34,7 @@ int main(void) {
     struct task_struct p = {.uclamp_req = {{0}, {1024}}};
     struct sched_attr a = {.sched_flags = 0x60, .sched_util_min = 256,
                            .sched_util_max = 768};
-    assert(uclamp_validate(&p, &a) == 0 && sched_uclamp_used);
+    assert(uclamp_validate(&p, &a) == 0);
     a.sched_util_min = 769;
     assert(uclamp_validate(&p, &a) == -EINVAL);
     a.sched_util_min = 0; a.sched_util_max = 1025;
@@ -104,5 +102,65 @@ int main(void) {
     get_params(&p, &a);
     assert(a.sched_priority == 0 && a.sched_runtime == 1000);
     puts("PASS: KEEP_PARAMS replaces ignored priority before normal/RT/deadline validation");
+}
+''')
+
+# Complete another partial update while this caller waits for the rq lock.
+# Extract the caller too: testing the validator alone misses the lock order.
+scheduler = function_body('kernel/sched/core.c', '__sched_setscheduler')
+start = scheduler.index('\n\t}', scheduler.index('retval = security_task_setscheduler')) + len('\n\t}')
+end = scheduler.index('\n\t/*\n\t * Changing the policy of the stop threads')
+run_c(r'''
+#include <assert.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <errno.h>
+#define CONFIG_UCLAMP_TASK 1
+#define SCHED_CAPACITY_SCALE 1024
+#define SCHED_FLAG_UTIL_CLAMP_MIN 0x20
+#define SCHED_FLAG_UTIL_CLAMP_MAX 0x40
+#define SCHED_FLAG_UTIL_CLAMP 0x60
+#define UCLAMP_MIN 0
+#define UCLAMP_MAX 1
+struct task_struct { struct {unsigned int value;} uclamp_req[2]; };
+struct sched_attr {unsigned int sched_flags, sched_util_min, sched_util_max;};
+struct rq {bool locked;} rq_data;
+struct rq_flags {int unused;};
+static bool sched_uclamp_used;
+static void static_branch_enable(bool *key) {
+    assert(!rq_data.locked); *key = true;
+}
+static struct rq *task_rq_lock(struct task_struct *p, struct rq_flags *rf) {
+    assert(!rq_data.locked);
+    p->uclamp_req[UCLAMP_MIN].value = 800;
+    rq_data.locked = true;
+    return &rq_data;
+}
+static void task_rq_unlock(struct rq *rq, struct task_struct *p, struct rq_flags *rf) {
+    assert(rq->locked); rq->locked = false;
+}
+static void update_rq_clock(struct rq *rq) { assert(rq->locked); }
+static int uclamp_validate(struct task_struct *p, const struct sched_attr *attr)
+''' + validate + r'''
+static int validate_update(struct task_struct *p, const struct sched_attr *attr) {
+    int retval;
+    struct rq *rq;
+    struct rq_flags rf;
+''' + scheduler[start:end] + r'''
+    task_rq_unlock(rq, p, &rf);
+    return 0;
+}
+int main(void) {
+    struct task_struct p = {.uclamp_req = {{0}, {1024}}};
+    struct sched_attr a = {.sched_flags = SCHED_FLAG_UTIL_CLAMP_MAX, .sched_util_max = 600};
+    assert(validate_update(&p, &a) == -EINVAL);
+    assert(!rq_data.locked && sched_uclamp_used);
+    a.sched_util_max = 900;
+    assert(validate_update(&p, &a) == 0 && !rq_data.locked);
+    a.sched_flags |= SCHED_FLAG_UTIL_CLAMP_MIN; a.sched_util_min = 256; a.sched_util_max = 768;
+    assert(validate_update(&p, &a) == 0 && !rq_data.locked);
+    a.sched_util_min = 769;
+    assert(validate_update(&p, &a) == -EINVAL && !rq_data.locked);
+    puts("PASS: partial clamp validation observes updates completed before rq lock acquisition");
 }
 ''')
