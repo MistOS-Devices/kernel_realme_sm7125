@@ -159,6 +159,7 @@ cond_syscall(compat_sys_io_getevents);
 cond_syscall(sys_sysfs);
 cond_syscall(sys_syslog);
 cond_syscall(sys_process_madvise);
+cond_syscall(sys_process_mrelease);
 cond_syscall(sys_process_vm_readv);
 cond_syscall(sys_process_vm_writev);
 cond_syscall(compat_sys_process_vm_readv);
