@@ -5442,6 +5442,14 @@ change:
 
 	check_class_changed(rq, p, prev_class, oldprio);
 
+	if (queued && (attr->sched_flags & SCHED_FLAG_UTIL_CLAMP)) {
+#ifdef CONFIG_SCHED_WALT
+		cpufreq_update_util(rq, SCHED_CPUFREQ_WALT);
+#else
+		cpufreq_update_util(rq, 0);
+#endif
+	}
+
 	/* Avoid rq from going away on us: */
 	preempt_disable();
 	task_rq_unlock(rq, p, &rf);

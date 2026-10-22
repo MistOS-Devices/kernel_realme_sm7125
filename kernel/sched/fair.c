@@ -7014,7 +7014,13 @@ boosted_task_util(struct task_struct *task)
 
 	trace_sched_boost_task(task, util, margin);
 
-	return util + margin;
+	util += margin;
+#ifdef CONFIG_UCLAMP_TASK
+	if (uclamp_is_used())
+		return clamp(util, uclamp_eff_value(task, UCLAMP_MIN),
+			     uclamp_eff_value(task, UCLAMP_MAX));
+#endif
+	return util;
 }
 
 static unsigned long cpu_util_without(int cpu, struct task_struct *p);

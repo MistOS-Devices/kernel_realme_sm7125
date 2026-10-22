@@ -377,10 +377,9 @@ static void sugov_iowait_boost(struct sugov_cpu *sg_cpu, unsigned long *util,
 	boost_util = sg_cpu->iowait_boost;
 	boost_max = sg_cpu->iowait_boost_max;
 
-	if (*util * boost_max < *max * boost_util) {
-		*util = boost_util;
-		*max = boost_max;
-	}
+	/* Keep WALT and uclamp inputs in capacity units, not kHz. */
+	if (*util * boost_max < *max * boost_util)
+		*util = mult_frac(*max, boost_util, boost_max);
 }
 
 #ifdef CONFIG_NO_HZ_COMMON
@@ -451,7 +450,7 @@ static void sugov_update_single(struct update_util_data *hook, u64 time,
 	if (!sugov_should_update_freq(sg_policy, time))
 		return;
 
-	busy = use_pelt() && sugov_cpu_is_busy(sg_cpu);
+	busy = use_pelt() && sugov_cpu_is_busy(sg_cpu) && !uclamp_is_used();
 
 	raw_spin_lock(&sg_policy->update_lock);
 
@@ -479,6 +478,7 @@ static void sugov_update_single(struct update_util_data *hook, u64 time,
 
 		sugov_iowait_boost(sg_cpu, &util, &max);
 		sugov_walt_adjust(sg_cpu, &util, &max);
+		util = uclamp_util_with(cpu_rq(sg_cpu->cpu), util, NULL);
 		next_f = get_next_freq(sg_policy, util, max);
 		/*
 		 * Do not reduce the frequency if the CPU has not been idle
@@ -531,13 +531,14 @@ static unsigned int sugov_next_freq_shared(struct sugov_cpu *sg_cpu, u64 time)
 		 */
 		j_util = j_sg_cpu->util;
 		j_max = j_sg_cpu->max;
+		sugov_iowait_boost(j_sg_cpu, &j_util, &j_max);
+		sugov_walt_adjust(j_sg_cpu, &j_util, &j_max);
+		j_util = uclamp_util_with(cpu_rq(j), j_util, NULL);
 		if (j_util * max >= j_max * util) {
 			util = j_util;
 			max = j_max;
 		}
 
-		sugov_iowait_boost(j_sg_cpu, &util, &max);
-		sugov_walt_adjust(j_sg_cpu, &util, &max);
 	}
 
 	return get_next_freq(sg_policy, util, max);
