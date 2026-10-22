@@ -5675,11 +5675,11 @@ err_size:
 
 static void get_params(struct task_struct *p, struct sched_attr *attr)
 {
+	/* 4.14 validates priority even for normal and deadline tasks. */
+	attr->sched_priority = p->rt_priority;
 	if (task_has_dl_policy(p))
 		__getparam_dl(p, attr);
-	else if (task_has_rt_policy(p))
-		attr->sched_priority = p->rt_priority;
-	else
+	else if (!task_has_rt_policy(p))
 		attr->sched_nice = task_nice(p);
 }
 

@@ -78,3 +78,31 @@ int main(void) {
     assert(check_flags(&a) == -EINVAL);
 }
 ''')
+
+# KEEP_PARAMS must discard fields ignored by the target task's policy before
+# the 4.14 scheduler's unconditional priority validation.
+run_c(r'''
+#include <assert.h>
+#include <stdio.h>
+struct task_struct { int policy, nice; unsigned int rt_priority; };
+struct sched_attr { int sched_nice; unsigned int sched_priority; unsigned long sched_runtime; };
+static int task_has_dl_policy(struct task_struct *p) { return p->policy == 6; }
+static int task_has_rt_policy(struct task_struct *p) { return p->policy == 1 || p->policy == 2; }
+static int task_nice(struct task_struct *p) { return p->nice; }
+static void __getparam_dl(struct task_struct *p, struct sched_attr *a) { a->sched_runtime = 1000; }
+static void get_params(struct task_struct *p, struct sched_attr *attr)
+''' + function_body('kernel/sched/core.c', 'get_params') + r'''
+int main(void) {
+    struct task_struct p = {.policy = 0, .nice = 3};
+    struct sched_attr a = {.sched_nice = -20, .sched_priority = 99};
+    get_params(&p, &a);
+    assert(a.sched_nice == 3 && a.sched_priority == 0);
+    p.policy = 2; p.rt_priority = 42;
+    get_params(&p, &a);
+    assert(a.sched_priority == 42);
+    p.policy = 6; p.rt_priority = 0; a.sched_priority = 99;
+    get_params(&p, &a);
+    assert(a.sched_priority == 0 && a.sched_runtime == 1000);
+    puts("PASS: KEEP_PARAMS replaces ignored priority before normal/RT/deadline validation");
+}
+''')
