@@ -19,7 +19,9 @@ run_c(r'''
 #define __user
 #define READ 0
 #define UIO_FASTIOV 8
+#ifndef UIO_MAXIOV
 #define UIO_MAXIOV 1024
+#endif
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 #define MADV_COLD 20
 #define MADV_PAGEOUT 21
