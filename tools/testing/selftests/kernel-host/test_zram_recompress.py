@@ -37,10 +37,12 @@ struct zram_entry {unsigned char data[PAGE_SIZE];};
 struct zcomp_strm {unsigned char buffer[PAGE_SIZE];int id;};
 struct zcomp {struct zcomp_strm stream;};
 struct zram_table_entry {struct zram_entry *entry;unsigned long flags;unsigned int size;};
-struct zram {struct zram_table_entry table[1];void *mem_pool;struct zcomp *comps[4];bool use_dedup;u32 num_active_comps;struct {long compr_data_size,pages_stored,huge_pages;}stats;};
+struct zram {struct zram_table_entry table[1];void *mem_pool;unsigned long limit_pages;struct zcomp *comps[4];bool use_dedup;u32 num_active_comps;struct {long compr_data_size,pages_stored,huge_pages;}stats;};
 static unsigned int lengths[4]={3000,1000,500,400};
 static int stream_held=-1,compress_error,read_error,frees,allocs,last_decoder=-1;
 static bool alloc_fail;
+static unsigned long pool_pages;
+static int rejected_frees;
 static unsigned char original[PAGE_SIZE];
 static bool zram_dedup_enabled(struct zram *z) {return z->use_dedup;}
 static struct zram_entry *zram_get_entry(struct zram *z,u32 i) {return z->table[i].entry;}
@@ -72,6 +74,9 @@ static int zcomp_decompress(struct zcomp_strm *s,void *src,unsigned int size,voi
 }
 static unsigned long zs_malloc(void *pool,unsigned int n,int flags) {allocs++;return alloc_fail?0:(unsigned long)calloc(1,sizeof(struct zram_entry));}
 static struct zram_entry *zram_entry_alloc(struct zram *z,unsigned int n,int flags) {assert(!z->use_dedup);return (void *)zs_malloc(z->mem_pool,n,flags);}
+static unsigned long zs_get_total_pages(void *pool) {return pool_pages;}
+static void update_used_max(struct zram *z,unsigned long pages) {}
+static void zram_entry_free(struct zram *z,struct zram_entry *entry) {rejected_frees++;free(entry);}
 static void *zs_map_object(void *pool,unsigned long h,int mode) {assert(h);return (void *)h;}
 static void zs_unmap_object(void *pool,unsigned long h) {}
 static unsigned int zs_lookup_class_index(void *pool,unsigned int n) {return (n+255)/256;}
@@ -101,7 +106,10 @@ int main(void) {
  alloc_fail=true;
  assert(zram_recompress(&z,0,&page,0,1,2)==-ENOMEM);
  assert(z.table[0].entry==old&&z.table[0].size==3000&&!frees&&stream_held==-1);
- alloc_fail=false;compress_error=-EIO;
+ alloc_fail=false;z.limit_pages=1;pool_pages=2;
+ assert(zram_recompress(&z,0,&page,0,1,2)==-ENOMEM);
+ assert(z.table[0].entry==old&&!frees&&rejected_frees==1&&stream_held==-1);
+ z.limit_pages=0;pool_pages=0;compress_error=-EIO;
  assert(zram_recompress(&z,0,&page,0,1,2)==-EIO);
  assert(z.table[0].entry==old&&!frees&&stream_held==-1);compress_error=0;
  read_error=-EIO;assert(zram_recompress(&z,0,&page,0,1,2)==-EIO);
