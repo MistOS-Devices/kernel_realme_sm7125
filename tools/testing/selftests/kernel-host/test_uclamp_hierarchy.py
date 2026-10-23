@@ -21,7 +21,9 @@ struct task_group {struct task_group *parent; struct cgroup_subsys_state css; st
 #define css_tg(c) ((c) ? (c)->tg : NULL)
 #define css_for_each_descendant_pre(c,top) for ((c)=(top); (c); (c)=(c)->next)
 static struct cgroup_subsys_state *css_rightmost_descendant(struct cgroup_subsys_state *c) {
-    while (c->next) c=c->next; return c;
+    while (c->next)
+        c = c->next;
+    return c;
 }
 static int updates;
 static void uclamp_update_active_tasks(struct cgroup_subsys_state *c) { updates++; }
