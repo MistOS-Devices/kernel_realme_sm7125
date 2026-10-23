@@ -1,0 +1,15 @@
+What:		/sys/kernel/dmabuf/buffers/<inode_number>/exporter_name
+Date:		October 2026
+Contact:	Linux media mailing list <linux-media@vger.kernel.org>
+Description:
+		Read-only name of the DMA-BUF exporter, or "unknown" when no
+		exporter name was supplied. Available with CONFIG_DMABUF_SYSFS_STATS.
+		Entries are created asynchronously and disappear when the buffer
+		is released; short-lived buffers may never appear.
+
+What:		/sys/kernel/dmabuf/buffers/<inode_number>/size
+Date:		October 2026
+Contact:	Linux media mailing list <linux-media@vger.kernel.org>
+Description:
+		Read-only size of the DMA-BUF in bytes, as a decimal integer.
+		The directory name is the inode number of its sharing file.

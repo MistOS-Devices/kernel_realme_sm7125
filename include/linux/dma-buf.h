@@ -394,6 +394,7 @@ struct dma_buf_ops {
  * @poll: for userspace poll support
  * @cb_excl: for userspace poll support
  * @cb_shared: for userspace poll support
+ * @sysfs_entry: optional per-buffer sysfs statistics, when enabled.
  *
  * This represents a shared buffer, created by calling dma_buf_export(). The
  * userspace representation is a normal file descriptor, which can be created by
@@ -433,7 +434,9 @@ struct dma_buf {
 
 	struct list_head refs;
 	atomic_t dent_count;
-
+#ifdef CONFIG_DMABUF_SYSFS_STATS
+	struct dma_buf_sysfs_entry *sysfs_entry;
+#endif
 };
 
 /**

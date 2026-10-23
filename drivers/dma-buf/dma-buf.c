@@ -44,6 +44,8 @@
 #include <uapi/linux/dma-buf.h>
 #include <uapi/linux/magic.h>
 
+#include "dma-buf-sysfs-stats.h"
+
 #ifdef OPLUS_FEATURE_LOWMEM_DBG
 /* #Hailong.Liu@BSP.Kernel.MM, 2020/06/19, Add for dump memory */
 /* usage when lowmmem occurs. */
@@ -129,6 +131,7 @@ static void dma_buf_release(struct dentry *dentry)
 	 */
 	BUG_ON(dmabuf->cb_shared.active || dmabuf->cb_excl.active);
 
+	dma_buf_stats_teardown(dmabuf);
 	dmabuf->ops->release(dmabuf);
 
 	dma_buf_ref_destroy(dmabuf);
@@ -692,6 +695,10 @@ struct dma_buf *dma_buf_export(const struct dma_buf_export_info *exp_info)
 	mutex_lock(&db_list.lock);
 	list_add(&dmabuf->list_node, &db_list.head);
 	mutex_unlock(&db_list.lock);
+
+	/* Optional accounting must not prevent a buffer from being exported. */
+	if (dma_buf_stats_setup(dmabuf))
+		pr_debug("dma-buf: sysfs statistics unavailable for buffer\n");
 
 	return dmabuf;
 
@@ -1742,6 +1749,8 @@ static int __init dma_buf_init(void)
 
 	mutex_init(&db_list.lock);
 	INIT_LIST_HEAD(&db_list.head);
+	if (dma_buf_init_sysfs_statistics())
+		pr_warn("dma-buf: sysfs statistics initialization failed\n");
 	dma_buf_init_debugfs();
 #if defined(OPLUS_FEATURE_PERFORMANCE) && defined(CONFIG_PROC_FS)
 	dma_buf_init_procfs();
@@ -1752,6 +1761,7 @@ subsys_initcall(dma_buf_init);
 
 static void __exit dma_buf_deinit(void)
 {
+	dma_buf_uninit_sysfs_statistics();
 	dma_buf_uninit_debugfs();
 	kern_unmount(dma_buf_mnt);
 #if defined(OPLUS_FEATURE_PERFORMANCE) && defined(CONFIG_PROC_FS)

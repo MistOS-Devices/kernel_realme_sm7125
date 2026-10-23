@@ -1,5 +1,17 @@
 menu "DMABUF options"
 
+config DMABUF_SYSFS_STATS
+	bool "DMA-BUF sysfs statistics"
+	depends on DMA_SHARED_BUFFER && SYSFS
+	help
+	  Expose read-only size and exporter information for DMA-BUF objects
+	  under /sys/kernel/dmabuf/buffers. Userspace memory accounting tools
+	  can use this information without requiring debugfs.
+
+	  Entries are created asynchronously to keep sysfs work out of the
+	  buffer export path. Short-lived buffers may never appear, and a
+	  statistics allocation failure does not prevent buffer exports.
+
 config SYNC_FILE
 	bool "Explicit Synchronization Framework"
 	default n
