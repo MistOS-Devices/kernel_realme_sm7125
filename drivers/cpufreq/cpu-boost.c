@@ -14,6 +14,7 @@
 #define pr_fmt(fmt) "cpu-boost: " fmt
 
 #include <linux/kernel.h>
+#include <linux/kprofiles.h>
 #include <linux/init.h>
 #include <linux/cpufreq.h>
 #include <linux/cpu.h>
@@ -199,6 +200,7 @@ static void do_input_boost(struct work_struct *work)
 {
 	unsigned int i, ret;
 	unsigned int boost = READ_ONCE(sched_boost_on_input);
+	unsigned int boost_ms = kp_input_boost_duration(READ_ONCE(input_boost_ms));
 	struct cpu_sync *i_sync_info;
 
 	cancel_delayed_work_sync(&input_boost_rem);
@@ -227,13 +229,13 @@ static void do_input_boost(struct work_struct *work)
 	}
 
 	queue_delayed_work(cpu_boost_wq, &input_boost_rem,
-					msecs_to_jiffies(input_boost_ms));
+					msecs_to_jiffies(boost_ms));
 }
 
 static void cpuboost_input_event(struct input_handle *handle,
 		unsigned int type, unsigned int code, int value)
 {
-	unsigned int boost_ms = READ_ONCE(input_boost_ms);
+	unsigned int boost_ms = kp_input_boost_duration(READ_ONCE(input_boost_ms));
 	u64 now, interval;
 
 	if (!input_boost_enabled || !boost_ms)

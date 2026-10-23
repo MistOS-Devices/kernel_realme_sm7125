@@ -59,7 +59,7 @@ run_c(code)
 header=(ROOT/'include/linux/kprofiles.h').read_text()
 import re
 header=re.sub(r'^#include.*$', '', header, flags=re.M)
-run_c('#include <assert.h>\n#include <errno.h>\n'+header+r'''
+run_c('#include <assert.h>\n#include <errno.h>\n#include <limits.h>\n'+header+r'''
 int main(void) { assert(kp_active_mode()==0); assert(kp_set_mode(1)==-ENODEV); }
 ''')
 print('PASS: KProfiles config-off API remains inert')

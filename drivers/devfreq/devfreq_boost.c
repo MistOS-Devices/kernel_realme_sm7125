@@ -7,6 +7,7 @@
 
 #include <linux/devfreq_boost.h>
 #include <linux/input.h>
+#include <linux/kprofiles.h>
 #include <linux/kthread.h>
 #include <linux/msm_drm_notify.h>
 #include <linux/slab.h>
@@ -62,7 +63,8 @@ static void __devfreq_boost_kick(struct boost_dev *b)
 
 	set_bit(INPUT_BOOST, &b->state);
 	if (!mod_delayed_work(system_unbound_wq, &b->input_unboost,
-		msecs_to_jiffies(CONFIG_DEVFREQ_INPUT_BOOST_DURATION_MS))) {
+		msecs_to_jiffies(kp_input_boost_duration(
+			CONFIG_DEVFREQ_INPUT_BOOST_DURATION_MS)))) {
 		/* Set the bit again in case we raced with the unboost worker */
 		set_bit(INPUT_BOOST, &b->state);
 		wake_up(&b->boost_waitq);

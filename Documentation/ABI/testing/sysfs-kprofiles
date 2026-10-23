@@ -7,3 +7,9 @@ Description:
 		3 Performance. Invalid writes preserve the previous mode.
 		No display automation, temporary overrides or notifier API.
 		Default is 0. Consumers define effects; see input boost drivers.
+
+		Input CPU/DDR boost duration: Battery uses half (rounded up),
+		Balanced and Default use configured duration, Performance uses
+		1.5x (rounded up, saturating). Zero remains zero. Active votes
+		expire normally; CPU work samples mode when the worker executes.
+		Explicit max/wake boosts, frequencies and thermal caps unchanged.
