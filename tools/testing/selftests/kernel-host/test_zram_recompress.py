@@ -22,6 +22,10 @@ typedef uint32_t u32;
 #define ZRAM_IDLE 18
 #define ZRAM_INCOMPRESSIBLE 19
 #define ZRAM_SAME 14
+#define ZRAM_LOCK 13
+#define ZRAM_WB 15
+#define ZRAM_UNDER_WB 16
+#define WARN_ON_ONCE(x) assert(!(x))
 #define __GFP_KSWAPD_RECLAIM 0
 #define __GFP_NOWARN 0
 #define __GFP_HIGHMEM 0
@@ -32,12 +36,14 @@ typedef uint32_t u32;
 #define PTR_ERR(v) ((intptr_t)(v))
 #define atomic64_add(n,p) (*(p)+=(n))
 #define atomic64_inc(p) (++*(p))
+#define atomic64_dec(p) (--*(p))
+#define atomic64_sub(n,p) (*(p)-=(n))
 struct page {unsigned char data[PAGE_SIZE];};
 struct zram_entry {unsigned char data[PAGE_SIZE];};
 struct zcomp_strm {unsigned char buffer[PAGE_SIZE];int id;};
 struct zcomp {struct zcomp_strm stream;};
 struct zram_table_entry {struct zram_entry *entry;unsigned long flags;unsigned int size;};
-struct zram {struct zram_table_entry table[1];void *mem_pool;unsigned long limit_pages;struct zcomp *comps[4];bool use_dedup;u32 num_active_comps;struct {long compr_data_size,pages_stored,huge_pages;}stats;};
+struct zram {struct zram_table_entry table[1];void *mem_pool;unsigned long limit_pages;struct zcomp *comps[4];bool use_dedup;u32 num_active_comps;struct {long compr_data_size,pages_stored,huge_pages,same_pages;}stats;};
 static unsigned int lengths[4]={3000,1000,500,400};
 static int stream_held=-1,compress_error,read_error,frees,allocs,last_decoder=-1;
 static bool alloc_fail;
@@ -76,19 +82,17 @@ static unsigned long zs_malloc(void *pool,unsigned int n,int flags) {allocs++;re
 static struct zram_entry *zram_entry_alloc(struct zram *z,unsigned int n,int flags) {assert(!z->use_dedup);return (void *)zs_malloc(z->mem_pool,n,flags);}
 static unsigned long zs_get_total_pages(void *pool) {return pool_pages;}
 static void update_used_max(struct zram *z,unsigned long pages) {}
-static void zram_entry_free(struct zram *z,struct zram_entry *entry) {rejected_frees++;free(entry);}
+static void zram_entry_free(struct zram *z,struct zram_entry *entry) {if(entry==z->table[0].entry)frees++;else rejected_frees++;free(entry);}
+static void free_block_bdev(struct zram *z,unsigned long index) {assert(index==123);}
 static void *zs_map_object(void *pool,unsigned long h,int mode) {assert(h);return (void *)h;}
 static void zs_unmap_object(void *pool,unsigned long h) {}
 static unsigned int zs_lookup_class_index(void *pool,unsigned int n) {return (n+255)/256;}
-static void zram_free_page(struct zram *z,size_t i) {
- frees++;free(z->table[i].entry);z->stats.compr_data_size-=z->table[i].size;
- z->stats.pages_stored--;if(zram_test_flag(z,i,ZRAM_HUGE))z->stats.huge_pages--;
- memset(&z->table[i],0,sizeof(z->table[i]));
-}
 static void zram_set_priority(struct zram *zram,u32 index,u32 prio)
 ''' + function_body(path,'zram_set_priority') + r'''
 static u32 zram_get_priority(struct zram *zram,u32 index)
 ''' + function_body(path,'zram_get_priority') + r'''
+static void zram_free_page(struct zram *zram,size_t index)
+''' + function_body(path,'zram_free_page') + r'''
 static int zram_read_from_zspool(struct zram *zram,struct page *page,u32 index)
 ''' + function_body(path,'zram_read_from_zspool') + r'''
 static int zram_recompress(struct zram *zram,u32 index,struct page *page,u32 threshold,u32 prio,u32 prio_max)
@@ -128,6 +132,16 @@ int main(void) {
  assert(zram_read_from_zspool(&z,&decoded,0)==0&&last_decoder==2);
  assert(!memcmp(decoded.data,original,PAGE_SIZE));
  zram_free_page(&z,0);assert(!zram_get_priority(&z,0)&&!z.stats.pages_stored);
+
+ setup(&z,comps);z.table[0].size=PAGE_SIZE;memcpy(z.table[0].entry->data,original,PAGE_SIZE);
+ zram_set_flag(&z,0,ZRAM_HUGE);z.stats.huge_pages=1;z.stats.compr_data_size=PAGE_SIZE;
+ assert(zram_recompress(&z,0,&page,0,1,2)==0&&!z.stats.huge_pages&&!zram_test_flag(&z,0,ZRAM_HUGE));
+ assert(zram_read_from_zspool(&z,&decoded,0)==0&&!memcmp(decoded.data,original,PAGE_SIZE));
+ zram_free_page(&z,0);assert(!z.stats.pages_stored&&!z.stats.compr_data_size);
+ z.table[0].entry=(void *)123;z.stats.pages_stored=1;zram_set_flag(&z,0,ZRAM_WB);zram_set_priority(&z,0,2);
+ zram_free_page(&z,0);assert(!z.table[0].entry&&!z.table[0].flags&&!z.stats.pages_stored);
+ z.table[0].entry=(void *)42;z.stats.pages_stored=1;z.stats.same_pages=1;zram_set_flag(&z,0,ZRAM_SAME);
+ zram_free_page(&z,0);assert(!z.table[0].entry&&!z.table[0].flags&&!z.stats.pages_stored&&!z.stats.same_pages);
  puts("PASS: ZRAM recompression retains old data on failure and reads with the stored compressor");
 }
 ''')
