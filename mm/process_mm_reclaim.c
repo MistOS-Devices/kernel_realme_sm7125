@@ -103,6 +103,12 @@ cont:
 		if (isolate_lru_page(page))
 			continue;
 
+		/* Isolation restores PageActive for young MGLRU generations. */
+		if (rp->inactive_lru && PageActive(page)) {
+			putback_lru_page(page);
+			continue;
+		}
+
 		/*
 		 * MADV_FREE clears pte dirty bit and then marks the page
 		 * lazyfree (clear SwapBacked). Inbetween if this lazyfreed page
