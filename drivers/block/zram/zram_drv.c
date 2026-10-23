@@ -1106,7 +1106,7 @@ static ssize_t recomp_algorithm_store(struct device *dev,
 				      size_t len)
 {
 	struct zram *zram = dev_to_zram(dev);
-	int prio = ZRAM_SECONDARY_COMP;
+	u32 prio = ZRAM_SECONDARY_COMP;
 	char *args, *param, *val;
 	char *alg = NULL;
 	int ret;
@@ -1115,7 +1115,7 @@ static ssize_t recomp_algorithm_store(struct device *dev,
 	while (*args) {
 		args = next_arg(args, &param, &val);
 
-		if (!*val)
+		if (!val || !*val)
 			return -EINVAL;
 
 		if (!strcmp(param, "algo")) {
@@ -1124,11 +1124,12 @@ static ssize_t recomp_algorithm_store(struct device *dev,
 		}
 
 		if (!strcmp(param, "priority")) {
-			ret = kstrtoint(val, 10, &prio);
+			ret = kstrtouint(val, 10, &prio);
 			if (ret)
 				return ret;
 			continue;
 		}
+		return -EINVAL;
 	}
 
 	if (!alg)
@@ -1877,7 +1878,7 @@ static ssize_t recompress_store(struct device *dev,
 {
 	u32 prio = ZRAM_SECONDARY_COMP, prio_max = ZRAM_MAX_COMPS;
 	struct zram *zram = dev_to_zram(dev);
-	unsigned long nr_pages = zram->disksize >> PAGE_SHIFT;
+	unsigned long nr_pages;
 	char *args, *param, *val, *algo = NULL;
 	u32 mode = 0, threshold = 0;
 	unsigned long index;
@@ -1885,19 +1886,25 @@ static ssize_t recompress_store(struct device *dev,
 	ssize_t ret;
 
 	args = skip_spaces(buf);
+	if (!*args)
+		return -EINVAL;
 	while (*args) {
 		args = next_arg(args, &param, &val);
 
-		if (!*val)
+		if (!val || !*val)
 			return -EINVAL;
 
 		if (!strcmp(param, "type")) {
 			if (!strcmp(val, "idle"))
 				mode = RECOMPRESS_IDLE;
-			if (!strcmp(val, "huge"))
+			else if (!strcmp(val, "huge"))
 				mode = RECOMPRESS_HUGE;
-			if (!strcmp(val, "huge_idle"))
+			else if (!strcmp(val, "huge_idle"))
 				mode = RECOMPRESS_IDLE | RECOMPRESS_HUGE;
+			else if (!strcmp(val, "all"))
+				mode = 0;
+			else
+				return -EINVAL;
 			continue;
 		}
 
@@ -1916,6 +1923,7 @@ static ssize_t recompress_store(struct device *dev,
 			algo = val;
 			continue;
 		}
+		return -EINVAL;
 	}
 
 	if (threshold >= PAGE_SIZE)
@@ -1926,6 +1934,13 @@ static ssize_t recompress_store(struct device *dev,
 		ret = -EINVAL;
 		goto release_init_lock;
 	}
+
+	/* Deduplicated entries share data and cannot carry independent codecs. */
+	if (zram_dedup_enabled(zram)) {
+		ret = -EOPNOTSUPP;
+		goto release_init_lock;
+	}
+	nr_pages = zram->disksize >> PAGE_SHIFT;
 
 	if (algo) {
 		bool found = false;
