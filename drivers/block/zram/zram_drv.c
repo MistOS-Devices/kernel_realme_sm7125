@@ -2244,27 +2244,23 @@ static void zram_destroy_comps(struct zram *zram)
 			kfree(zram->comp_algs[prio]);
 		zram->comp_algs[prio] = NULL;
 	}
-
+	zram->comp_algs[ZRAM_PRIMARY_COMP] = default_compressor;
 }
 
 static void zram_reset_device(struct zram *zram)
 {
 	down_write(&zram->init_lock);
 	zram->limit_pages = 0;
-	if (!init_done(zram)) {
-		up_write(&zram->init_lock);
-		return;
+	if (init_done(zram)) {
+		set_capacity(zram->disk, 0);
+		part_stat_set_all(&zram->disk->part0, 0);
+		/* All I/O has stopped before the compressors are destroyed. */
+		zram_meta_free(zram, zram->disksize);
+		zram->disksize = 0;
 	}
-
-	set_capacity(zram->disk, 0);
-	part_stat_set_all(&zram->disk->part0, 0);
-	/* All I/O has stopped before the compressors and their names are freed. */
-	zram_meta_free(zram, zram->disksize);
-	zram->disksize = 0;
 	zram_destroy_comps(zram);
 	memset(&zram->stats, 0, sizeof(zram->stats));
 	reset_bdev(zram);
-	comp_algorithm_set(zram, ZRAM_PRIMARY_COMP, default_compressor);
 	up_write(&zram->init_lock);
 }
 
