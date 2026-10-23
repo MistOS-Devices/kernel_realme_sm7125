@@ -66,3 +66,38 @@ run_c('#include <stdio.h>\n#define PAGE_SHIFT 16\n#define ZRAM_FLAG_SHIFT (PAGE_
       + enum + '\n_Static_assert(__NR_ZRAM_PAGEFLAGS <= 32, "flags overflow on 32-bit");\n'
       + 'int main(void) {puts("PASS: ZRAM size, flags and codec identity fit a 32-bit word");}\n')
 
+
+run_c(r'''
+#include <assert.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdarg.h>
+#include <string.h>
+#include <sys/types.h>
+typedef uint32_t u32;
+#define PAGE_SIZE 4096
+#define ZRAM_SECONDARY_COMP 1U
+#define ZRAM_MAX_COMPS 4U
+struct zram {int init_lock;const char *comp_algs[4];};
+struct device {struct zram *z;};
+struct device_attribute {int unused;};
+static bool held;
+static struct zram *dev_to_zram(struct device *d) {return d->z;}
+static void down_read(int *l) {assert(!held);held=true;}
+static void up_read(int *l) {assert(held);held=false;}
+static int scnprintf(char *buf,size_t n,const char *format,...) {
+ assert(held);va_list args;va_start(args,format);int ret=vsnprintf(buf,n,format,args);va_end(args);return ret;
+}
+static ssize_t zcomp_available_show(const char *alg,char *buf) {assert(held&&alg);return snprintf(buf,64,"[%s]\n",alg);}
+static ssize_t __comp_algorithm_show(struct zram *z,u32 prio,char *buf) {down_read(&z->init_lock);ssize_t n=zcomp_available_show(z->comp_algs[prio],buf);up_read(&z->init_lock);return n;}
+static ssize_t recomp_algorithm_show(struct device *dev,struct device_attribute *attr,char *buf)
+''' + function_body(path,'recomp_algorithm_show') + r'''
+int main(void) {
+ struct zram z={.comp_algs={"lz4","zstd",NULL,"lz4hc"}};struct device d={&z};char buf[PAGE_SIZE];
+ assert(recomp_algorithm_show(&d,NULL,buf)>0&&!held);
+ assert(strstr(buf,"#1: [zstd]")&&strstr(buf,"#3: [lz4hc]"));
+ puts("PASS: ZRAM secondary algorithm enumeration keeps name ownership locked");
+}
+''')
