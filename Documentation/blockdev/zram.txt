@@ -362,3 +362,44 @@ With recompression enabled, writeback accepts incompressible to select pages
 that all configured secondary compressors failed to shrink.
 
 The block_state flag n identifies a page no secondary compressor could shrink.
+
+12) Explicit secondary compression (CONFIG_ZRAM_MULTI_COMP)
+
+LZ4 remains the default primary compressor. Configure secondary algorithms
+before setting disksize, for example on a newly created, unused zram device:
+
+	echo 'algo=zstd priority=1' > /sys/block/zramX/recomp_algorithm
+	echo 64M > /sys/block/zramX/disksize
+
+Primary writes still use LZ4. Each recompressed slot records its secondary
+compressor so reads and writeback use the matching decompressor. Priorities
+1 through 3 are available; lower numbers are tried first. Algorithms cannot
+be changed while the device is initialized. Reset frees secondary settings.
+
+There is no automatic or background recompression. After writing data, mark
+idle slots and explicitly request recompression:
+
+	echo all > /sys/block/zramX/idle
+	echo 'type=idle algo=zstd' > /sys/block/zramX/recompress
+
+Supported types are all, idle, huge, and huge_idle. An optional threshold=N
+selects objects at least N bytes long and requires the recompressed result
+to be smaller than N; N must be less than PAGE_SIZE. Recompression also
+requires a smaller zsmalloc size class. Failed allocations and compression
+errors preserve the old object. The configured mem_limit is still enforced.
+Reading an idle page clears its idle marker without requiring DEBUG_FS or
+ZRAM_MEMORY_TRACKING. Recompression also clears the processed idle marker.
+
+Deduplicated devices reject recompression with EOPNOTSUPP; ordinary primary
+compression and deduplication remain available. Same-filled, written-back,
+and under-writeback slots are excluded. No backing device is needed for
+recompression. No swap sizing or writeback policy changes are implied.
+
+For device validation, use a separate unused device created with the
+zram-control hot_add interface; do not reset active swap. Check exact data
+readback with direct I/O before and after idle/huge recompression, compare
+mm_stat, then discard/rewrite the tested slots and repeat. If a spare backing
+device is available, verify writeback/readback of recompressed slots as well.
+Use CONFIG_ANDROID_BINDER_IPC_SELFTEST for Binder allocator boot tests and
+check lockdep/KASAN builds for concurrent Binder traffic, process exit and
+memory pressure. Compile and host tests do not replace these runtime checks.
