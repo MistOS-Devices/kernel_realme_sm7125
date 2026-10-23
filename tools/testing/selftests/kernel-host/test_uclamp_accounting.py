@@ -12,6 +12,7 @@ code = r'''
 #define UCLAMP_BUCKETS 5
 #define UCLAMP_BUCKET_DELTA 205
 #define UCLAMP_FLAG_IDLE 1
+#define clamp(v, lo, hi) ((v) < (lo) ? (lo) : ((v) > (hi) ? (hi) : (v)))
 #define min_t(type, a, b) ((type)(a) < (type)(b) ? (type)(a) : (type)(b))
 #define likely(x) (x)
 #define unlikely(x) (x)
@@ -25,7 +26,11 @@ struct uclamp_se {unsigned int value, bucket_id; bool active, user_defined;};
 struct uclamp_bucket {unsigned int value, tasks;};
 struct uclamp_rq {unsigned int value; struct uclamp_bucket bucket[5];};
 struct rq {struct uclamp_rq uclamp[2]; unsigned int uclamp_flags; int lock;} rq_data;
-struct task_struct {struct uclamp_se uclamp[2], uclamp_req[2]; bool sched_reset_on_fork;};
+struct task_group {struct uclamp_se uclamp[2]; bool autogroup;};
+static struct task_group root_task_group __attribute__((unused));
+#define task_group(p) ((p)->group ? (p)->group : &root_task_group)
+#define task_group_is_autogroup(g) ((g)->autogroup)
+struct task_struct {struct task_group *group; struct uclamp_se uclamp[2], uclamp_req[2]; bool sched_reset_on_fork;};
 struct rq_flags {int unused;};
 static struct uclamp_se uclamp_default[2];
 static struct rq *task_rq_lock(struct task_struct *p, struct rq_flags *rf) {
@@ -103,7 +108,37 @@ int main(void) {
     for (int id = 0; id < 2; id++)
         for (int k = 0; k < 5; k++)
             assert(!rq_data.uclamp[id].bucket[k].tasks);
+#ifdef CONFIG_UCLAMP_TASK_GROUP
+    struct task_group group = {0};
+    a.group = &group;
+    uclamp_se_set(&group.uclamp[0], 128, false);
+    uclamp_se_set(&group.uclamp[1], 512, false);
+    uclamp_se_set(&a.uclamp_req[0], 768, true);
+    uclamp_se_set(&a.uclamp_req[1], 1024, true);
+    enqueue(&a);
+    assert(a.uclamp[0].value == 512 && a.uclamp[1].value == 512);
+    uclamp_se_set(&group.uclamp[1], 900, false);
+    uclamp_update_active(&a);
+    assert(a.uclamp[0].value == 768 && a.uclamp[1].value == 900);
+    uclamp_se_set(&group.uclamp[0], 950, false);
+    uclamp_se_set(&group.uclamp[1], 1024, false);
+    uclamp_update_active(&a);
+    assert(a.uclamp[0].value == 950 && a.uclamp[1].value == 1024);
+    assert(!(rq_data.uclamp_flags & UCLAMP_FLAG_IDLE));
+    dequeue(&a);
+    /* Changing groups on dequeue/enqueue must not retain the previous floor. */
+    a.group = NULL;
+    enqueue(&a);
+    assert(a.uclamp[0].value == 768);
+    dequeue(&a);
+    uclamp_update_active(&a); /* Sleeping tasks have no accounted buckets. */
+    for (int id = 0; id < 2; id++)
+        for (int k = 0; k < 5; k++)
+            assert(!rq_data.uclamp[id].bucket[k].tasks);
+#endif
     puts("PASS: uclamp aggregation, active updates, idle retention and fork/reset");
 }
 '''
 run_c(code)
+
+run_c("#define CONFIG_UCLAMP_TASK_GROUP 1\n" + code)
