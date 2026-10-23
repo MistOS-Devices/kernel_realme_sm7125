@@ -327,13 +327,14 @@ void clear_shadow_from_swap_cache(int type, unsigned long begin,
 		spin_lock_irq(&address_space->tree_lock);
 		radix_tree_for_each_slot(slot, &address_space->page_tree,
 					 &iter, curr) {
+			if (iter.index > end)
+				break;
+
 			item = radix_tree_deref_slot_protected(slot,
 					&address_space->tree_lock);
 			if (radix_tree_exceptional_entry(item))
 				radix_tree_iter_delete(&address_space->page_tree,
 						       &iter, slot);
-			if (iter.next_index > end)
-				break;
 		}
 		spin_unlock_irq(&address_space->tree_lock);
 

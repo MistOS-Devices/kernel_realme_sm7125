@@ -7,7 +7,7 @@ TESTS := test_ext4_flush.py test_bore.py test_sbalance.py \
 	test_ksu_info.py test_ksu_events.py \
 	test_process_madvise.py test_process_mrelease.py test_reclaim_advice.py \
 	test_uclamp.py test_uclamp_accounting.py test_uclamp_walt.py \
-	test_mglru.py test_mglru_process_reclaim.py \
+	test_mglru.py test_mglru_process_reclaim.py test_swap_shadow.py \
 	../cpufreq/test_cpu_boost.py
 
 .PHONY: all run_tests
