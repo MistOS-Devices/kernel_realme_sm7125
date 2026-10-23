@@ -808,9 +808,9 @@ static void binder_alloc_clear_buf(struct binder_alloc *alloc,
 		page = binder_alloc_get_page(alloc, buffer,
 					     buffer_offset, &pgoff);
 		size = min_t(size_t, bytes, PAGE_SIZE - pgoff);
-		kptr = kmap(page) + pgoff;
-		memset(kptr, 0, size);
-		kunmap(page);
+		kptr = kmap_atomic(page);
+		memset(kptr + pgoff, 0, size);
+		kunmap_atomic(kptr);
 		bytes -= size;
 		buffer_offset += size;
 	}
