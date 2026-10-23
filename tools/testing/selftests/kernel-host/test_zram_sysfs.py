@@ -18,6 +18,7 @@ run_c(r'''
 typedef uint32_t u32;
 #define PAGE_SHIFT 12
 #define PAGE_SIZE (1UL<<PAGE_SHIFT)
+#define ZRAM_PRIMARY_COMP 0U
 #define ZRAM_SECONDARY_COMP 1U
 #define ZRAM_MAX_COMPS 4U
 #define RECOMPRESS_IDLE 1
@@ -54,7 +55,7 @@ static int zram_recompress(struct zram *z,u32 i,struct page *p,u32 threshold,u32
  calls++;selected[i]++;last_prio=prio;return recomp_error;
 }
 static int __comp_algorithm_store(struct zram *z,u32 prio,const char *algo) {
- assert(prio>=1&&prio<4);if(init_done(z))return -EBUSY;
+ assert(prio<4);if(init_done(z))return -EBUSY;
  if(strcmp(algo,"zstd")&&strcmp(algo,"lz4hc"))return -EINVAL;
  algorithm_sets++;return 0;
 }
@@ -76,8 +77,14 @@ static char *next_arg(char *args,char **param,char **val)
 ''' + function_body('lib/cmdline.c','next_arg') + r'''
 static ssize_t recompress_store(struct device *dev,struct device_attribute *attr,const char *buf,size_t len)
 ''' + function_body(path,'recompress_store') + r'''
+/* Keep GCC/Clang checking the signed errno versus unsigned byte count. */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic error "-Wsign-conversion"
+static ssize_t comp_algorithm_store(struct device *dev,struct device_attribute *attr,const char *buf,size_t len)
+''' + function_body(path,'comp_algorithm_store') + r'''
 static ssize_t recomp_algorithm_store(struct device *dev,struct device_attribute *attr,const char *buf,size_t len)
 ''' + function_body(path,'recomp_algorithm_store') + r'''
+#pragma GCC diagnostic pop
 static ssize_t request(struct device *d,const char *s,bool algo) {
  char buf[256];strcpy(buf,s);ssize_t ret=algo?recomp_algorithm_store(d,NULL,buf,strlen(s)):recompress_store(d,NULL,buf,strlen(s));
  assert(!held&&!locked&&allocations==free_pages);return ret;
@@ -102,8 +109,12 @@ int main(void) {
  z.disksize=0;assert(request(&d,"type=all",false)==-EINVAL);
  const char *bad_alg[]={"algo","algo=","priority=1","algo=zstd priority=0","algo=zstd priority=4","algo=zstd priority=-1","algo=zstd priority=9999999999999999","algo=zstd typo=1"};
  for(size_t i=0;i<sizeof(bad_alg)/sizeof(*bad_alg);i++)assert(request(&d,bad_alg[i],true)<0&&algorithm_sets==0);
- assert(request(&d,"algo=zstd priority=1",true)>0&&algorithm_sets==1);
+ assert(request(&d,"algo=zstd priority=1",true)==(ssize_t)strlen("algo=zstd priority=1")&&algorithm_sets==1);
  z.disksize=PAGE_SIZE;assert(request(&d,"algo=zstd",true)==-EBUSY);
+ assert(comp_algorithm_store(&d,NULL,"zstd",4)==-EBUSY);
+ z.disksize=0;
+ assert(comp_algorithm_store(&d,NULL,"invalid",7)==-EINVAL);
+ assert(comp_algorithm_store(&d,NULL,"zstd",4)==4);
  puts("PASS: ZRAM parsers reject malformed requests and dedup; selectors and failures release locks/pages");
 }
 ''')

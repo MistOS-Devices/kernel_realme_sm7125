@@ -1077,7 +1077,7 @@ static ssize_t comp_algorithm_store(struct device *dev,
 	int ret;
 
 	ret = __comp_algorithm_store(zram, ZRAM_PRIMARY_COMP, buf);
-	return ret ? ret : len;
+	return ret ? ret : (ssize_t)len;
 }
 
 #ifdef CONFIG_ZRAM_MULTI_COMP
@@ -1141,7 +1141,7 @@ static ssize_t recomp_algorithm_store(struct device *dev,
 		return -EINVAL;
 
 	ret = __comp_algorithm_store(zram, prio, alg);
-	return ret ? ret : len;
+	return ret ? ret : (ssize_t)len;
 }
 #endif
 
