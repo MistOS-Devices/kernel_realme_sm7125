@@ -23,12 +23,12 @@ static int events, reclaim_updates;
 #define ClearPageReferenced(p) ((p)->referenced = false)
 #define hpage_nr_pages(p) ((p)->pages)
 static int page_is_file_cache(struct page *p) { return p->file; }
-static int page_lru_base_type(struct page *p) { return p->file; }
-static void del_page_from_lru_list(struct page *p, struct lruvec *v, int lru) {
-    assert(lru == page_lru_base_type(p) + LRU_ACTIVE); v->active -= p->pages;
+static bool lru_gen_enabled(void) { return false; }
+static void del_page_from_lru_list(struct page *p, struct lruvec *v) {
+    assert(p->active); v->active -= p->pages;
 }
-static void add_page_to_lru_list(struct page *p, struct lruvec *v, int lru) {
-    assert(lru == page_lru_base_type(p)); v->inactive += p->pages;
+static void add_page_to_lru_list(struct page *p, struct lruvec *v) {
+    assert(!p->active); v->inactive += p->pages;
 }
 static void __count_vm_events(int type, int pages) { events += pages; }
 static void update_page_reclaim_stat(struct lruvec *v, int file, int rotated) {
