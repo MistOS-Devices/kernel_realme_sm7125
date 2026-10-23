@@ -8355,6 +8355,29 @@ capacity_from_percent(char *buf)
 
 	buf = strim(buf);
 	if (strcmp(buf, "max")) {
+		char *p = buf;
+		unsigned int digits = 0;
+
+		/* Bound sscanf's integer conversion and reject partial numbers. */
+		while (*p >= '0' && *p <= '9') {
+			p++;
+			digits++;
+		}
+		if (!digits || digits > 3)
+			goto invalid;
+		if (*p == '.') {
+			p++;
+			digits = 0;
+			while (*p >= '0' && *p <= '9') {
+				p++;
+				digits++;
+			}
+			if (!digits || digits > 16)
+				goto invalid;
+		}
+		if (*p)
+			goto invalid;
+
 		req.ret = cgroup_parse_float(buf, UCLAMP_PERCENT_SHIFT,
 					     &req.percent);
 		if (req.ret)
@@ -8368,6 +8391,10 @@ capacity_from_percent(char *buf)
 		req.util = DIV_ROUND_CLOSEST_ULL(req.util, UCLAMP_PERCENT_SCALE);
 	}
 
+	return req;
+
+invalid:
+	req.ret = -EINVAL;
 	return req;
 }
 
