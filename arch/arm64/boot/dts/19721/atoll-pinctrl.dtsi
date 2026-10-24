@@ -1872,7 +1872,7 @@
            pins = "gpio12"; /* GPIO 12 */
            function = "normal"; /* normal input */
            bias-disable; /* no pull*/ 
-           power-source = <1>; /* VIN1 for 1.8V */
+           power-source = <0>; /* VIN1 uses selector 0 on this LV GPIO. */
            input-enable; /* digital input */
        };
    };
